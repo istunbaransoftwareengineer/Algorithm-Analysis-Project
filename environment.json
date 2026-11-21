@@ -1,0 +1,62 @@
+{
+  "dataset": "CIFAR-10 official Python release",
+  "archive_url": "https://cave.cs.toronto.edu/kriz/cifar-10-python.tar.gz",
+  "archive_md5": "c58f30108f718f92721af3b95e74349a",
+  "archive_sha256": "6d958be074577803d12ecdefd02955f39262c83c16fe9348329d7fe0b5c001ce",
+  "n_train_source": 50000,
+  "n_test": 10000,
+  "n_classes": 10,
+  "classes": [
+    "airplane",
+    "automobile",
+    "bird",
+    "cat",
+    "deer",
+    "dog",
+    "frog",
+    "horse",
+    "ship",
+    "truck"
+  ],
+  "n_train": [
+    1000,
+    2500,
+    5000,
+    10000
+  ],
+  "seeds": [
+    17,
+    29,
+    43,
+    61,
+    79
+  ],
+  "epochs": 3,
+  "batch_size": 128,
+  "learning_rate": 0.002,
+  "optimizer": "Adam",
+  "loss": "CrossEntropyLoss",
+  "run_order_seed": 2026,
+  "preprocessing": "fixed per-channel normalization; no augmentation",
+  "device": "CPU only",
+  "torch_intra_op_threads": 4,
+  "torch_inter_op_threads": 1,
+  "cpu_model": "12th Gen Intel(R) Core(TM) i7-12700H",
+  "physical_cores": 14,
+  "logical_cpus": 20,
+  "system_ram_mib": 32503.46875,
+  "os": "Windows-11-10.0.26300-SP0",
+  "python": "3.12.14",
+  "torch": "2.15.0",
+  "numpy": "2.3.5",
+  "psutil": "7.2.2",
+  "rss_interval_ms": 5.0,
+  "energy_method": "Estimated process CPU J = CPU base power W * process CPU s / logical CPU count",
+  "energy_power_base_w": 45.0,
+  "rss_method": "Process RSS sampled during each phase, including measurement boundaries",
+  "host_gpu_adapters": [
+    "Intel(R) UHD Graphics",
+    "NVIDIA GeForce RTX 4060 Laptop GPU"
+  ],
+  "gpu_used": false
+}

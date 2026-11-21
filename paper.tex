@@ -1,0 +1,154 @@
+\documentclass[conference]{IEEEtran}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage[hidelinks]{hyperref}
+\title{Time, Memory, Energy, and Classification Performance of Three Neural Networks on CIFAR-10}
+\input{authors.tex}
+\input{tables.tex}
+\input{results.tex}
+
+\begin{document}
+\maketitle
+\begin{abstract}
+We compare a multilayer perceptron and two compact convolutional neural networks on CIFAR-10. Each configuration is trained from scratch with five paired seeds at four training-set sizes. We evaluate classification on the full official test set and report elapsed time, peak process resident memory, and a CPU energy estimate separately for training and inference. \AbstractResults{} We relate these results to operation counts and model size.
+\end{abstract}
+\begin{IEEEkeywords}
+CIFAR-10, deep learning, convolutional neural networks, experimental complexity, energy estimation
+\end{IEEEkeywords}
+
+\section{Introduction}
+Image classifiers are often compared by predictive quality, but resource budgets determine how often a classifier can be retrained and where it can be deployed. The number of trained parameters determines weight storage. Runtime also depends on the operations that reuse those weights, intermediate activations, and the software implementation. We use CIFAR-10 to examine how these factors interact on the same CPU.
+
+We ask how increasing the training set changes quality and resource use, how well theoretical costs predict the relative expense of dense and convolutional architectures, and which architecture best fits different retraining and inference budgets. All three models use the same splits and number of training passes over each example.
+
+\section{Related Work}
+Krizhevsky introduced CIFAR-10 as a benchmark for learning from small natural images~\cite{krizhevsky,cifar}. Early gradient-based convolutional architectures exploited local receptive fields and shared weights to classify images~\cite{lecun}. We apply these ideas in small networks and use a dense network as a baseline. Dumoulin and Visin explain how convolutional stride and padding determine output dimensions~\cite{dumoulin}. Those dimensions govern the number of operations and intermediate activations. Henderson \emph{et al.} advocate reporting hardware, energy methodology, and repeatable configurations to support comparison~\cite{henderson}. Here we account for training and inference separately and specify the assumptions of the energy estimator.
+
+\section{Theoretical Background and Complexity}
+\subsection{Architectures and operation counts}
+Table~\ref{tab:architectures} gives the three architectures. Each convolution uses a $3\times3$ kernel and one-pixel padding. Bracketed values give the stride. Each max pooling layer uses a $2\times2$ window and stride two. ReLU follows each hidden dense or convolutional layer. The final dense layer returns ten logits.
+
+\begin{table*}[t]
+\caption{Layer widths and theoretical forward arithmetic per image. MACs count dense and convolutional multiply--accumulate pairs.}
+\label{tab:architectures}
+\centering
+\begin{tabular}{@{}llrr@{}}
+\toprule
+Model & Trainable layers and pooling in order & Parameters & Forward MACs \\
+\midrule
+MLP & Flatten, dense $3072\to64\to32\to10$ & 199,082 & 198,976 \\
+Small CNN & Conv $3\to8$ [2], pool, flatten, dense $512\to10$ & 5,354 & 60,416 \\
+Medium CNN & \shortstack[l]{Conv $3\to12$ [2], pool, conv $12\to24$ [1], pool,\\conv $24\to32$ [1], flatten, dense $512\to10$} & 15,026 & 364,544 \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+For a dense layer with $d_i$ inputs and $d_o$ outputs, the forward pass uses $d_i d_o$ MACs and $(d_i+1)d_o$ parameters including biases. A standard convolution with $C_i$ input channels, $C_o$ output channels, a $k_h\times k_w$ kernel, and an $H_o\times W_o$ output grid uses
+\begin{equation}
+M_{\mathrm{conv}}=H_oW_o C_o C_i k_h k_w
+\label{eq:conv}
+\end{equation}
+MACs and has $C_o(C_i k_h k_w+1)$ parameters. For example, the first convolution in Small CNN produces $16\times16\times8$ activations, giving $55{,}296$ MACs before its $5{,}120$-MAC classifier. The counts exclude pooling, ReLU, bias additions, loss, and optimizer work.
+
+\subsection{Training and inference costs}
+Let $N$ and $Q$ denote training and test sizes, $E$ the epoch budget, $B$ the batch size, $P$ the parameter count, and $M$ the forward MAC count per image. The leading layer arithmetic is $\Theta(ENM)$ in training and $\Theta(QM)$ in inference. Training evaluates forward and backward passes, and Adam adds $O(E\lceil N/B\rceil P)$ elementwise update work~\cite{adam}. Holding $Q$ and the architecture fixed, the leading inference cost is constant with respect to $N$.
+
+Let $A_l$ denote the number of activations per image in layer $l$. Parameters, gradients, and Adam moments scale with $P$. Saved activations can add $O(B\sum_l A_l)$ during training. A layerwise inference pass can release intermediate tensors when they cease to be needed, so its activation storage is on the order of $B\max_l A_l$. Process resident memory also includes datasets, library state, backend workspaces, and cached allocations. Ranking models by $P$ alone therefore need not rank peak RSS or elapsed time.
+
+\section{Methodology and Experimental Setup}
+\subsection{Data and repeated design}
+CIFAR-10 contains 60,000 labeled RGB images of $32\times32$ pixels across ten categories~\cite{cifar}. Its official split supplies 50,000 training images and 10,000 test images. For each seed (17, 29, 43, 61, 79), we shuffle the 5,000 training indices per class, then use their prefixes to construct nested, balanced subsets of 1,000, 2,500, 5,000, and 10,000 images. All architectures see the same subsets and official test images. Each batch is rescaled from byte intensities by dividing by 255 and standardized with fixed RGB means $(0.4914,0.4822,0.4465)$ and standard deviations $(0.2470,0.2435,0.2616)$. We use no data augmentation.
+
+All models use cross-entropy loss and Adam with learning rate 0.002, three epochs, and 128 examples per batch. The common epoch budget compares early training behavior. Larger subsets also entail more optimizer steps. We record accuracy, macro precision, macro recall, and macro-F1, with all classes weighted equally in each macro metric. We report the arithmetic mean and sample standard deviation over five runs. With a fixed test set, the deviations reflect different training subsets, initial weights, and measurement noise.
+
+\subsection{Timing, resident memory, and energy}
+We execute all 60 trials sequentially in fresh processes, shuffling trial order with seed 2026. We warm up the forward and backward kernels without updating weights. The fit phase includes batch ordering, normalization, forward and backward passes, and optimizer updates. The inference phase uses evaluation mode without gradient tracking, and its timing includes normalization, batch predictions, and collecting predicted labels. Data loading and metric calculation are outside the timed phases. We use a monotonic elapsed clock and a separate process CPU clock. We sample absolute RSS with psutil every 5~ms when scheduled and at the phase boundaries. The test set is resident during both phases. We release the training data, gradients, and optimizer before inference.
+
+We estimate CPU energy with a process-load approximation comparable to the CPU fallback described by CodeCarbon~\cite{codecarbon}. If $T$ is the measured phase duration, $t_{\mathrm{CPU}}$ is the process CPU time and $L$ is the number of logical processors, the estimator is
+\begin{equation}
+\widehat{E}_{\mathrm{CPU}} = P_{\mathrm{base}} T
+\frac{t_{\mathrm{CPU}}}{LT}
+= \frac{P_{\mathrm{base}}}{L}t_{\mathrm{CPU}} .
+\label{eq:energy}
+\end{equation}
+We use $P_{\mathrm{base}}=45$~W and $L=20$ for the measured processor~\cite{intel}. The estimate depends on seconds of CPU activity and cannot resolve turbo and frequency variation, performance and efficiency cores, DRAM, or idle package power. Memory traffic can affect time and CPU activity, but this estimator cannot attribute joules to those transfers.
+
+\subsection{Hardware and software}
+The host has an Intel Core i7-12700H (14 physical cores, 20 logical processors) and 31.74~GiB of system RAM visible to the operating system. We ran all trials on the CPU with four PyTorch intra-operation threads and one inter-operation thread and enabled deterministic algorithms. The installed Intel UHD Graphics and NVIDIA GeForce RTX 4060 Laptop GPUs were unused, so no VRAM metric applies. The software stack was Windows 11 (10.0.26300), Python 3.12.14, PyTorch 2.15.0+cpu, NumPy 2.3.5, and psutil 7.2.2.
+
+\section{Experimental Results and Discussion}
+\subsection{Scaling and full-test classification}
+Figure~\ref{fig:scale} shows resource use and quality by training size. Table~\ref{tab:quality} gives the four classification metrics at the largest size, with resource costs in Table~\ref{tab:resources}. The companion CSV files include all sizes and per-run observations.
+
+\ScalingDiscussion{}
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{../results/figures/scaling.pdf}
+\caption{Resource use and classification quality by training-set size. Markers show means over five runs and whiskers show one sample standard deviation. CPU energy is estimated.}
+\label{fig:scale}
+\end{figure*}
+
+\begin{table}[t]
+\caption{Classification performance at the largest training size, mean $\pm$ sample SD (\%).}
+\label{tab:quality}
+\centering
+\small
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+Model & Accuracy & Prec. & Recall & F1 \\
+\midrule
+\QualityRows
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[t]
+\caption{Resource costs at the largest training size, mean $\pm$ sample SD. Inference covers the full test set.}
+\label{tab:resources}
+\centering
+\small
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}llrrr@{}}
+\toprule
+Model & Phase & Time (s) & Peak (MiB) & Est. (J) \\
+\midrule
+\ResourceRows
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Accuracy and resource trade-offs}
+Figure~\ref{fig:tradeoffs} compares macro-F1 with inference time, peak resident memory, and estimated CPU energy. The axes describe separate operating constraints. A deployment can reject any model that exceeds its latency or memory budget before comparing the remaining quality scores.
+
+\TradeoffDiscussion{}
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{../results/figures/tradeoffs.pdf}
+\caption{Macro-F1 versus inference cost at the largest training size. Horizontal and vertical whiskers show one sample standard deviation along each axis.}
+\label{fig:tradeoffs}
+\end{figure*}
+
+\subsection{Limitations}
+The comparison covers one CPU, one dataset, and one training schedule. Sampling RSS can miss short-lived allocations. Inference RSS can include allocator state left by training and may differ from a fresh deployment process. The reported deviations describe run variability on this test set.
+
+\newpage
+\section{Conclusion and Future Work}
+\ConclusionResults{} Future experiments could use hardware-metered energy, measure cold-start inference in fresh processes, and compare costs at matched accuracy with a validation-based stopping rule.
+
+\IEEEtriggeratref{3}
+\begin{thebibliography}{00}
+\bibitem{krizhevsky} A. Krizhevsky, \textquotedblleft Learning multiple layers of features from tiny images,\textquotedblright\ Tech. Rep., University of Toronto, 2009.
+\bibitem{cifar} A. Krizhevsky, V. Nair, and G. Hinton, \textquotedblleft CIFAR-10 and CIFAR-100 datasets.\textquotedblright\ [Online]. Available: \url{https://www.cs.toronto.edu/~kriz/cifar.html}
+\bibitem{lecun} Y. LeCun, L. Bottou, Y. Bengio, and P. Haffner, \textquotedblleft Gradient-based learning applied to document recognition,\textquotedblright\ \emph{Proc. IEEE}, vol. 86, no. 11, pp. 2278--2324, 1998, doi: 10.1109/5.726791.
+\bibitem{dumoulin} V. Dumoulin and F. Visin, \textquotedblleft A guide to convolution arithmetic for deep learning,\textquotedblright\ arXiv:1603.07285, 2016.
+\bibitem{henderson} P. Henderson, J. Hu, J. Romoff, E. Brunskill, D. Jurafsky, and J. Pineau, \textquotedblleft Towards the systematic reporting of the energy and carbon footprints of machine learning,\textquotedblright\ \emph{J. Mach. Learn. Res.}, vol. 21, no. 248, pp. 1--43, 2020.
+\bibitem{adam} D. P. Kingma and J. Ba, \textquotedblleft Adam: A method for stochastic optimization,\textquotedblright\ in \emph{Proc. Int. Conf. Learn. Representations}, 2015.
+\bibitem{codecarbon} CodeCarbon, \textquotedblleft Methodology,\textquotedblright\ ver. 3.3 documentation. [Online]. Available: \url{https://docs.codecarbon.io/3.3/explanation/methodology/}
+\bibitem{intel} Intel, \textquotedblleft Intel Core i7-12700H processor specifications.\textquotedblright\ [Online]. Available: \url{https://www.intel.com/content/www/us/en/products/sku/132228/}
+\end{thebibliography}
+\end{document}

@@ -1,0 +1,17 @@
+\newcommand{\AbstractResults}{At 10,000 training images, Medium CNN achieved the highest mean accuracy (47.2\%) and macro-F1 (46.6\%). Small CNN attained 46.1\% macro-F1 with 85.5~ms mean inference time for 10,000 test images, compared with 199.4~ms for Medium CNN.}
+
+\newcommand{\ScalingDiscussion}{%
+Expanding the training subset from 1,000 to 10,000 images increased mean macro-F1 from 31.6\% to 40.5\% for MLP, 29.3\% to 46.1\% for Small CNN, and 24.4\% to 46.6\% for Medium CNN. MLP led at the two smallest sizes, Small CNN led at 5,000, and Medium CNN had the highest mean at 10,000. Since the test set has exactly 1,000 images per class, macro recall equals accuracy in this experiment.
+
+A tenfold increase in training size increased mean training time by factors of 8.6, 9.1, and 6.4 for MLP, Small CNN, and Medium CNN, respectively. The direction agrees with the theoretical increase in training work. These finite-size ratios also depend on batching, runtime overhead, and machine load. The inference times stayed within architecture-specific ranges with no sustained increase across all four sizes, consistent with using the same test set and the same graph each time.
+
+Training peak RSS increased by about 79--82~MiB across the three models. Most of that increase was already visible at the start of the training phase, when the selected images and accessed source pages were in memory. At 10,000 training images, the peak was about 5--6~MiB above that phase's mean baseline. Inference peak RSS remained in a narrower range of roughly 318--330~MiB. The absolute readings include baselines and allocator state, which helps explain why they are close despite different weight counts.%
+}
+
+\newcommand{\TradeoffDiscussion}{%
+At 10,000 training images, Small CNN gained 5.7 percentage points of mean macro-F1 over MLP while taking 2.4 times as long to infer. Compared with Small CNN, Medium CNN gained 0.41 percentage points in mean macro-F1 and required 2.67 times the training time, 2.33 times the inference time, and 2.51 times the estimated inference energy. Across the five matched seeds, the standard deviation of the macro-F1 difference was 3.26 percentage points. The additional computation was consistent across seeds, while the sign of the F1 difference changed.
+
+Small CNN used about 30\% of the MLP's forward MACs per image yet ran longer in both phases. Its spatial activations and pooling are absent from the MAC count, and dense and convolutional kernels can use the CPU differently. Medium CNN used about 1.8 times the MLP's forward MACs and took about 5.6 times as long in inference. The gap rules out using the arithmetic ratio alone as a latency prediction. The estimated energy generally tracked elapsed time because the measured CPU activity fractions were similar. At the largest size, training estimates were 3.34, 4.32, and 11.62~J, while inference estimates were 0.32, 0.72, and 1.82~J for the three architectures. These values reflect the process CPU time and cannot establish independent differences in electrical power.%
+}
+
+\newcommand{\ConclusionResults}{At the largest training size, MLP provided the lowest measured inference time and peak RSS. Small CNN achieved almost the mean macro-F1 of Medium CNN with less than half its inference time and estimated energy. The scaling results show that deployment cost depends on the operations and execution of a model as well as its parameter count.}
